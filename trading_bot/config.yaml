@@ -1,0 +1,68 @@
+exchange:
+  name: bybit
+  testnet: true
+  api_key: ${BYBIT_API_KEY}
+  api_secret: ${BYBIT_API_SECRET}
+
+trading:
+  symbols: ["SOLUSDT", "ETHUSDT", "ARBUSDT", "OPUSDT"]
+  capital: 1000.0
+  leverage_default: 3
+  weights:
+    SOLUSDT: 0.40
+    ETHUSDT: 0.25
+    ARBUSDT: 0.175
+    OPUSDT: 0.175
+
+monday:
+  entry_time_msk: "11:00"
+  exit_time_msk: "14:30"
+  funding_threshold_pct: 0.03
+  volume_multiplier: 1.5
+  btc_dominance_threshold: 59.0
+  min_coins: 2
+
+wednesday:
+  event_check_time_msk: "14:00"
+  entry_time_msk: "15:00"
+  delayed_entry_time_msk: "15:30"
+  forced_exit_time_msk: "10:00"
+  adx_period: 14
+  adx_thresholds:
+    SOLUSDT: 25
+    ETHUSDT: 22
+    ARBUSDT: 22
+    OPUSDT: 22
+  max_move_pct:
+    SOLUSDT: 3.5
+    ETHUSDT: 3.0
+    ARBUSDT: 3.0
+    OPUSDT: 3.0
+
+sunday:
+  entry_window_start_msk: "20:00"
+  entry_window_end_msk: "23:00"
+  exit_time_msk: "09:55"
+  breakout_period_hours: 4
+  volume_multiplier: 1.2
+  rsi_period: 14
+  rsi_threshold: 45
+  max_spread_pct: 0.1
+
+risk:
+  monday:
+    SOLUSDT: {sl_pct: 2.5, tp1_pct: 2.5, tp2_pct: 3.5, tp1_share: 0.30}
+    ETHUSDT: {sl_pct: 2.0, tp1_pct: 2.0, tp2_pct: 3.0, tp1_share: 0.40}
+    ARBUSDT: {sl_pct: 2.2, tp1_pct: 2.2, tp2_pct: 3.5, tp1_share: 0.40}
+    OPUSDT:  {sl_pct: 2.2, tp1_pct: 2.2, tp2_pct: 3.5, tp1_share: 0.40}
+
+telegram:
+  bot_token: ${TELEGRAM_TOKEN}
+  chat_id: ${TELEGRAM_CHAT_ID}
+
+database:
+  url: sqlite+aiosqlite:///./trading_bot.db
+
+logging:
+  level: INFO
+  dir: ./logs
