@@ -10,7 +10,7 @@ from telegram_bot import TelegramNotifier
 
 
 @dataclass(slots=True)
-class WednesdayStrategy:
+class FridayStrategy:
     analytics: AnalyticsEngine
     executor: PositionExecutor
     notifier: TelegramNotifier
@@ -19,37 +19,27 @@ class WednesdayStrategy:
 
     async def run(self) -> None:
         if self.state.paused:
-            await self.notifier.send_text("⏸ Wednesday skipped: bot paused")
+            await self.notifier.send_text("⏸ Friday skipped: bot paused")
             return
 
-        session_cfg = self.config["sessions"]["wednesday"]
-        filters = session_cfg["filters"]
-        if filters["require_high_impact_event"] and not self.analytics.has_high_impact_event():
-            await self.notifier.send_text("⏭ Wednesday skipped: no high-impact macro event")
-            return
-
+        session_cfg = self.config["sessions"]["friday"]
         weights = resolve_weights(session_cfg)
-        opened = 0
+
         for symbol in session_cfg["symbols"]:
-            trend = self.analytics.check_wednesday_trend(symbol)
-            if not trend["valid"]:
+            checks = self.analytics.check_tuesday_conditions(symbol, "friday")
+            if not all(bool(checks[k]) for k in ["funding_ok", "volume_ok", "btc_ok", "news_ok"]):
                 continue
-            side = "long" if trend["direction"] == "up" else "short"
             capital_share = self.config["trading"]["capital"] * weights[symbol]
             order_id = await self.executor.open_position(
                 symbol,
-                side=side,
+                side="short",
                 leverage=session_cfg["execution"]["leverage"],
                 capital_share=capital_share,
                 max_slippage_pct=session_cfg["execution"]["max_slippage_pct"],
             )
             if order_id is None:
-                await self.notifier.send_text(f"⚠️ Wednesday {symbol}: order cancelled due to slippage")
+                await self.notifier.send_text(f"⚠️ Friday {symbol}: order cancelled due to slippage")
                 continue
             risk = session_cfg["sl_tp"][symbol]
-            self.executor.set_sl_tp(symbol, side, risk["sl"], risk["tp1"])
-            await self.notifier.send_text(f"✅ Wednesday {side} opened {symbol}, order={order_id}")
-            opened += 1
-
-        if opened == 0:
-            await self.notifier.send_text("⏭ Wednesday skipped: no confirmed trend")
+            self.executor.set_sl_tp(symbol, "short", risk["sl"], risk["tp1"])
+            await self.notifier.send_text(f"✅ Friday short opened {symbol}, order={order_id}")

@@ -34,87 +34,73 @@ class AnalyticsEngine:
         return dx.rolling(period).mean()
 
     def check_monday_conditions(self, symbol: str) -> dict[str, bool | float]:
-        cfg = self.config
+        cfg = self.config["sessions"]["monday"]["filters"]
         funding = self.collector.get_funding_rates([symbol])[symbol]
-        funding_ok = funding > cfg["monday"]["funding_threshold_pct"]
-        volume_ratio = self.collector.get_volume_ratio(symbol, interval="60", sample_window=3)
-        volume_ok = volume_ratio >= cfg["monday"]["volume_multiplier"]
-
+        volume_ratio = self.collector.get_volume_ratio(symbol, interval="60", sample_window=1, baseline_window=3)
         h1 = self.collector.get_ohlcv(symbol, interval="60", limit=4)
+
         price_open_10 = float(h1.iloc[-2]["open"])
         price_now = float(h1.iloc[-1]["close"])
-        price_ok = price_now < price_open_10
-
         btc_d = self.collector.get_btc_dominance()
-        btc_ok = btc_d >= cfg["monday"]["btc_dominance_threshold"]
-
         etf = self.collector.get_etf_flows().get("inflow", 0.0)
-        etf_ok = etf <= -50_000_000
+        etf_ok = etf <= cfg["etf_outflow_threshold"] if cfg.get("require_etf_filter") else True
 
         return {
-            "funding_ok": funding_ok,
+            "funding_ok": funding > cfg["funding_threshold"],
             "funding_pct": round(funding, 6),
-            "volume_ok": volume_ok,
+            "volume_ok": volume_ratio >= cfg["volume_multiplier"],
             "volume_ratio": round(volume_ratio, 3),
-            "price_ok": price_ok,
-            "btc_dominance_ok": btc_ok,
+            "price_ok": price_now < price_open_10,
+            "btc_dominance_ok": btc_d >= cfg["btc_dominance_min"],
             "btc_dominance": btc_d,
             "etf_ok": etf_ok,
             "etf_inflow": etf,
         }
 
-    def check_sunday_breakout(self, symbol: str) -> dict[str, bool | float]:
-        cfg = self.config["sunday"]
-        h1 = self.collector.get_ohlcv(symbol, interval="60", limit=10)
-        m15 = self.collector.get_ohlcv(symbol, interval="15", limit=40)
+    def check_tuesday_conditions(self, symbol: str, day_name: str) -> dict[str, bool | float]:
+        cfg = self.config["sessions"][day_name]["filters"]
+        funding = self.collector.get_funding_rates([symbol])[symbol]
+        volume_ratio = self.collector.get_volume_ratio(symbol, interval="60", sample_window=1, baseline_window=24)
+        btc_d = self.collector.get_btc_dominance()
 
-        level = float(h1.iloc[-cfg["breakout_period_hours"]:]["high"].max())
-        current = float(m15.iloc[-1]["close"])
-        breakout_ok = current > level
+        news_ok = True
+        if cfg.get("block_on_news"):
+            news_ok = False  # TODO: подключить новостной фид/ручной флаг
 
-        volume_ratio = self.collector.get_volume_ratio(symbol, interval="60", sample_window=4)
-        volume_ok = volume_ratio >= cfg["volume_multiplier"]
-
-        rsi = float(self._rsi(h1["close"], period=cfg["rsi_period"]).iloc[-1])
-        rsi_ok = rsi < cfg["rsi_threshold"]
-
-        spread = self.collector.get_spread_pct(symbol)
-        spread_ok = spread <= cfg["max_spread_pct"]
+        btc_ok = True
+        if cfg.get("use_btc_dominance"):
+            btc_ok = btc_d >= cfg["btc_dominance_min"]
 
         return {
-            "breakout_ok": breakout_ok,
-            "volume_ok": volume_ok,
-            "rsi_ok": rsi_ok,
-            "spread_ok": spread_ok,
-            "breakout_level": level,
-            "price": current,
+            "funding_ok": funding > cfg["funding_min"],
+            "funding_pct": round(funding, 6),
+            "volume_ok": volume_ratio >= cfg["volume_ratio_min"],
             "volume_ratio": round(volume_ratio, 3),
-            "rsi": round(rsi, 2),
-            "spread_pct": round(spread, 4),
+            "btc_ok": btc_ok,
+            "btc_dominance": btc_d,
+            "news_ok": news_ok,
         }
 
-    def calculate_trend_strength(self, symbol: str) -> dict[str, str | float | bool]:
-        thresholds = self.config["wednesday"]
+    def check_wednesday_trend(self, symbol: str) -> dict[str, str | float | bool]:
+        filters = self.config["sessions"]["wednesday"]["filters"]
         m5 = self.collector.get_ohlcv(symbol, interval="5", limit=120)
         h1 = self.collector.get_ohlcv(symbol, interval="60", limit=100)
 
-        adx = float(self._adx(h1, period=thresholds["adx_period"]).iloc[-1])
-        adx_ok = adx >= thresholds["adx_thresholds"][symbol]
+        adx = float(self._adx(h1, period=filters["adx_period"]).iloc[-1])
+        adx_ok = adx >= filters["adx_thresholds"][symbol]
 
         last = m5.tail(8)
         direction = "up" if last["close"].iloc[-1] > last["close"].iloc[0] else "down"
         extremes_ok = bool((last["high"].diff().tail(3) > 0).sum() >= 2) if direction == "up" else bool((last["low"].diff().tail(3) < 0).sum() >= 2)
 
-        volume_ratio = self.collector.get_volume_ratio(symbol, interval="5", sample_window=24)
-        volume_threshold = 2.0 if symbol == "SOLUSDT" else 1.8
-        volume_ok = volume_ratio >= volume_threshold
+        volume_ratio = self.collector.get_volume_ratio(symbol, interval="5", sample_window=1, baseline_window=24)
+        volume_ok = volume_ratio >= filters["volume_multiplier"][symbol]
 
         pre_news_price = float(m5.iloc[-30]["close"])
         current_price = float(m5.iloc[-1]["close"])
         move_pct = abs((current_price - pre_news_price) / pre_news_price) * 100
-        move_ok = move_pct <= thresholds["max_move_pct"][symbol]
+        move_ok = move_pct <= filters["max_move_before_entry"][symbol]
 
-        valid = all([adx_ok, extremes_ok, volume_ok, move_ok])
         return {
             "direction": direction,
             "adx": round(adx, 2),
@@ -124,5 +110,37 @@ class AnalyticsEngine:
             "volume_ok": volume_ok,
             "move_pct": round(move_pct, 3),
             "move_ok": move_ok,
-            "valid": valid,
+            "valid": all([adx_ok, extremes_ok, volume_ok, move_ok]),
+        }
+
+    def has_high_impact_event(self) -> bool:
+        events = self.collector.get_economic_calendar()
+        return any(str(e.get("impact", "")).lower() == "high" for e in events)
+
+    def check_sunday_breakout(self, symbol: str) -> dict[str, bool | float]:
+        cfg = self.config["sessions"]["sunday"]["filters"]
+        h1 = self.collector.get_ohlcv(symbol, interval="60", limit=12)
+        m15 = self.collector.get_ohlcv(symbol, interval="15", limit=40)
+
+        level = float(h1.iloc[-cfg["breakout_period_hours"]:]["high"].max())
+        current = float(m15.iloc[-1]["close"])
+        breakout_ok = current > level
+
+        volume_ratio = self.collector.get_volume_ratio(symbol, interval="60", sample_window=1, baseline_window=4)
+        rsi = float(self._rsi(h1["close"], period=cfg["rsi_period"]).iloc[-1])
+        spread = self.collector.get_spread_pct(symbol)
+        avg_daily = self.collector.get_avg_daily_notional_7d(symbol)
+        max_pos_notional = avg_daily * (cfg["max_position_size_pct"] / 100)
+
+        return {
+            "breakout_ok": breakout_ok,
+            "volume_ok": volume_ratio >= cfg["volume_multiplier"],
+            "rsi_ok": rsi < cfg["rsi_threshold"],
+            "spread_ok": spread <= cfg["max_spread"],
+            "breakout_level": level,
+            "price": current,
+            "volume_ratio": round(volume_ratio, 3),
+            "rsi": round(rsi, 2),
+            "spread_pct": round(spread, 4),
+            "max_pos_notional": round(max_pos_notional, 2),
         }

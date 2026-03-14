@@ -1,15 +1,19 @@
-# Three-Day Trading Bot (Bybit Demo)
+# Five-Day Trading Bot (Bybit Demo, Pybit + aiogram)
 
-MVP-реализация ТЗ стратегии «Понедельник / Среда / Воскресенье» с использованием:
-- **Pybit** (исполнение ордеров на Bybit Unified Trading API)
-- **aiogram** (Telegram-команды и уведомления)
-- APScheduler (недельное расписание)
-- SQLAlchemy + SQLite (журнал сделок и сигналов)
+Реализация расширенного ТЗ стратегии **«5 дней»**:
+- ПН: short (SOL, ETH, ARB, OP)
+- ВТ: short (ETH, BNB, SOL, XRP)
+- СР: trend (SOL, ETH, ARB, OP)
+- ПТ: short (ETH, BNB, SOL, XRP)
+- ВС: long (SOL, ETH, ARB, OP)
 
-## Важно по безопасности
-1. Не храните ключи API в коде.
-2. Используйте `.env` и выдавайте API-ключу права только на торговлю (без вывода).
-3. Для старта используйте **testnet/demo**.
+## Что исправлено относительно прошлого MVP
+- Перевод конфигурации на `sessions.*` (каждый день отдельно: symbols, filters, sl/tp, execution).
+- Добавлены отдельные стратегии `tuesday.py` и `friday.py`.
+- Добавлены выходы по расписанию для каждой сессии (автозакрытие позиций).
+- Добавлен контроль паузы бота (`/pause`, `/resume`) в стратегиях, а не только в Telegram-хендлерах.
+- Добавлен параметр `/logs N` для выдачи последних N строк лога.
+- Добавлен контроль проскальзывания перед market-входом.
 
 ## Быстрый старт
 ```bash
@@ -18,20 +22,14 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# заполните BYBIT_API_KEY, BYBIT_API_SECRET, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
 python main.py
 ```
 
-## Структура
-- `core/data_collector.py` — рыночные данные (цены, funding, OHLCV, spread)
-- `core/analytics.py` — проверка условий для ПН/СР/ВС
-- `core/executor.py` — открытие/закрытие позиций и установка SL/TP
-- `modules/*.py` — сценарии торговых дней
-- `telegram_bot.py` — команды `/status`, `/kill_all`, `/pause`, `/resume`, `/config`, `/logs`
-- `core/scheduler.py` — cron-расписание в МСК
-- `database.py` — таблицы `trades`, `signals`
+## Конфиг
+Главный файл: `config.yaml`.
+Ключи/секреты подставляются из `.env` через `${VAR_NAME}`.
 
-## Ограничения текущего MVP
-- Заглушки для `BTC.D` и ETF-потоков (`get_btc_dominance`, `get_etf_flows`) — нужно подключить внешний провайдер.
-- Частичный TP2/трейлинг-стоп и расширенный backtest не реализованы в этой версии.
-- Рекомендуется добавить интеграционные тесты и dry-run режим перед реальной торговлей.
+## Важные ограничения
+- `get_btc_dominance`, `get_etf_flows`, `get_economic_calendar` сейчас stub-методы: нужно подключить реальных провайдеров.
+- Частичный TP1/TP2 и трейлинг реализованы как конфиг/база, но для полноценного много-ордерного исполнения потребуется отдельный order-manager.
+- Перед live обязательны dry-run и проверка всех путей исполнения на testnet.

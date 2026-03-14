@@ -14,14 +14,26 @@ from database import Trade
 class PositionExecutor:
     session: HTTP
     db_session_factory: async_sessionmaker
-    config: dict[str, Any]
 
     async def _log_trade(self, payload: dict[str, Any]) -> None:
         async with self.db_session_factory() as db:
             db.add(Trade(**payload))
             await db.commit()
 
-    async def open_position(self, symbol: str, side: str, leverage: int, capital_share: float) -> str:
+    def _slippage_ok(self, symbol: str, side: str, max_slippage_pct: float) -> bool:
+        tick = self.session.get_tickers(category="linear", symbol=symbol)["result"]["list"][0]
+        last = float(tick["lastPrice"])
+        book = self.session.get_orderbook(category="linear", symbol=symbol, limit=1)["result"]
+        bid = float(book["b"][0][0])
+        ask = float(book["a"][0][0])
+        reference = ask if side.lower() == "long" else bid
+        slippage = abs((last - reference) / reference) * 100
+        return slippage <= max_slippage_pct
+
+    async def open_position(self, symbol: str, side: str, leverage: int, capital_share: float, max_slippage_pct: float) -> str | None:
+        if not self._slippage_ok(symbol, side, max_slippage_pct):
+            return None
+
         price = float(self.session.get_tickers(category="linear", symbol=symbol)["result"]["list"][0]["lastPrice"])
         qty = max((capital_share * leverage) / price, 1)
         self.session.set_leverage(category="linear", symbol=symbol, buyLeverage=str(leverage), sellLeverage=str(leverage))
@@ -67,11 +79,10 @@ class PositionExecutor:
             positionIdx=0,
         )
 
-    def close_all_positions(self) -> list[str]:
+    def close_all_positions(self, symbols: list[str]) -> list[str]:
         ids: list[str] = []
-        for symbol in self.config["trading"]["symbols"]:
-            positions = self.session.get_positions(category="linear", symbol=symbol)["result"]["list"]
-            for pos in positions:
+        for symbol in symbols:
+            for pos in self.session.get_positions(category="linear", symbol=symbol)["result"]["list"]:
                 size = float(pos["size"])
                 if size <= 0:
                     continue
@@ -81,3 +92,11 @@ class PositionExecutor:
                 )
                 ids.append(order["result"]["orderId"])
         return ids
+
+    def get_open_positions(self, symbols: list[str]) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        for symbol in symbols:
+            for p in self.session.get_positions(category="linear", symbol=symbol)["result"]["list"]:
+                if float(p.get("size", 0)) > 0:
+                    out.append(p)
+        return out

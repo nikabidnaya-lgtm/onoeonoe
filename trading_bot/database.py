@@ -35,7 +35,7 @@ class Signal(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    day_type: Mapped[str] = mapped_column(String(10))
+    session: Mapped[str] = mapped_column(String(10))
     symbol: Mapped[str] = mapped_column(String(20))
     conditions: Mapped[dict] = mapped_column(JSON)
     signal_valid: Mapped[bool] = mapped_column(Boolean)
