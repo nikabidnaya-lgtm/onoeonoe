@@ -1,0 +1,140 @@
+exchange:
+  name: bybit
+  testnet: true
+  api_key: ${BYBIT_API_KEY}
+  api_secret: ${BYBIT_API_SECRET}
+
+trading:
+  capital: 1000.0
+  default_leverage: 3
+
+sessions:
+  monday:
+    enabled: true
+    type: short
+    symbols: ["SOLUSDT", "ETHUSDT", "ARBUSDT", "OPUSDT"]
+    entry_time: "11:00"
+    exit_time: "14:30"
+    weights:
+      SOLUSDT: 0.4
+      ETHUSDT: 0.25
+      ARBUSDT: 0.175
+      OPUSDT: 0.175
+    filters:
+      funding_threshold: 0.03
+      volume_multiplier: 1.5
+      btc_dominance_min: 59.0
+      etf_outflow_threshold: -50000000
+      min_coins: 2
+      require_etf_filter: false
+    execution:
+      leverage: 3
+      max_slippage_pct: 0.1
+    sl_tp:
+      SOLUSDT: {sl: 2.5, tp1: 2.5, tp1_pct: 30, tp2: 3.5, tp2_pct: 70}
+      ETHUSDT: {sl: 2.0, tp1: 2.0, tp1_pct: 40, tp2: 3.0, tp2_pct: 60}
+      ARBUSDT: {sl: 2.2, tp1: 2.2, tp1_pct: 40, tp2: 3.5, tp2_pct: 60}
+      OPUSDT:  {sl: 2.2, tp1: 2.2, tp1_pct: 40, tp2: 3.5, tp2_pct: 60}
+
+  tuesday:
+    enabled: true
+    type: short
+    symbols: ["ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
+    entry_time: "18:00"
+    exit_time: "19:00"
+    weights: {}
+    filters: &tuesday_filters
+      funding_min: -0.01
+      volume_ratio_min: 0.8
+      btc_dominance_min: 58.0
+      use_btc_dominance: false
+      block_on_news: false
+    execution:
+      leverage: 3
+      max_slippage_pct: 0.1
+    sl_tp: &tuesday_sl_tp
+      ETHUSDT: {sl: 2.0, tp1: 2.0, tp1_pct: 40, tp2: 3.0, tp2_pct: 60}
+      BNBUSDT: {sl: 1.8, tp1: 1.8, tp1_pct: 40, tp2: 2.8, tp2_pct: 60}
+      SOLUSDT: {sl: 2.5, tp1: 2.5, tp1_pct: 30, tp2: 3.5, tp2_pct: 70}
+      XRPUSDT: {sl: 2.0, tp1: 2.0, tp1_pct: 40, tp2: 3.0, tp2_pct: 60}
+
+  wednesday:
+    enabled: true
+    type: trend
+    symbols: ["SOLUSDT", "ETHUSDT", "ARBUSDT", "OPUSDT"]
+    entry_time: "15:00"
+    fallback_entry_time: "15:30"
+    exit_time: "10:00"
+    weights:
+      SOLUSDT: 0.4
+      ETHUSDT: 0.25
+      ARBUSDT: 0.175
+      OPUSDT: 0.175
+    filters:
+      require_high_impact_event: true
+      high_impact_sources:
+        - "https://www.investing.com/economic-calendar/"
+        - "https://www.forexfactory.com/calendar"
+      adx_period: 14
+      adx_thresholds: {SOLUSDT: 25, ETHUSDT: 22, ARBUSDT: 22, OPUSDT: 22}
+      max_move_before_entry: {SOLUSDT: 3.5, ETHUSDT: 3.0, ARBUSDT: 3.0, OPUSDT: 3.0}
+      volume_multiplier: {SOLUSDT: 2.0, ETHUSDT: 1.8, ARBUSDT: 1.8, OPUSDT: 1.8}
+    execution:
+      leverage: 3
+      max_slippage_pct: 0.1
+    sl_tp:
+      SOLUSDT: {sl: 2.5, tp1: 2.5, tp1_pct: 40, tp2: 4.5, tp2_pct: 30, trailing_step: 1.0}
+      ETHUSDT: {sl: 2.0, tp1: 2.0, tp1_pct: 40, tp2: 3.5, tp2_pct: 30, trailing_step: 0.8}
+      ARBUSDT: {sl: 2.2, tp1: 2.2, tp1_pct: 40, tp2: 4.0, tp2_pct: 30, trailing_step: 0.8}
+      OPUSDT:  {sl: 2.2, tp1: 2.2, tp1_pct: 40, tp2: 4.0, tp2_pct: 30, trailing_step: 0.8}
+
+  friday:
+    enabled: true
+    type: short
+    symbols: ["ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
+    entry_time: "19:00"
+    exit_time: "20:00"
+    weights: {}
+    filters: *tuesday_filters
+    execution:
+      leverage: 3
+      max_slippage_pct: 0.1
+    sl_tp: *tuesday_sl_tp
+
+  sunday:
+    enabled: true
+    type: long
+    symbols: ["SOLUSDT", "ETHUSDT", "ARBUSDT", "OPUSDT"]
+    entry_time: "20:00"
+    exit_time: "09:55"
+    weights:
+      SOLUSDT: 0.4
+      ETHUSDT: 0.25
+      ARBUSDT: 0.175
+      OPUSDT: 0.175
+    filters:
+      breakout_period_hours: 4
+      volume_multiplier: 1.2
+      rsi_period: 14
+      rsi_threshold: 45
+      max_spread: 0.1
+      max_position_size_pct: 1.0
+    execution:
+      leverage: 2
+      max_slippage_pct: 0.3
+    sl_tp:
+      SOLUSDT: {sl: 1.5, tp: [1.5, 2.0]}
+      ETHUSDT: {sl: 1.2, tp: [1.2, 1.8]}
+      ARBUSDT: {sl: 1.3, tp: [1.3, 1.8]}
+      OPUSDT:  {sl: 1.3, tp: [1.3, 1.8]}
+
+telegram:
+  bot_token: ${TELEGRAM_TOKEN}
+  chat_id: ${TELEGRAM_CHAT_ID}
+
+database:
+  url: sqlite+aiosqlite:///./trading_bot.db
+
+logging:
+  level: INFO
+  dir: ./logs
